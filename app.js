@@ -77,6 +77,18 @@ let supabaseConfig = null; // { url, key }
 
 // Load Supabase configuration
 function loadSupabaseConfig() {
+    // Check URL parameters for one-click setup
+    const urlParams = new URLSearchParams(window.location.search);
+    const paramUrl = urlParams.get('sb_url');
+    const paramKey = urlParams.get('sb_key');
+    
+    if (paramUrl && paramKey) {
+        const config = { url: decodeURIComponent(paramUrl), key: decodeURIComponent(paramKey) };
+        localStorage.setItem("tc_la_ciotat_supabase_config", JSON.stringify(config));
+        // Clear URL parameters to keep it clean in the address bar
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
     const saved = localStorage.getItem("tc_la_ciotat_supabase_config");
     if (saved) {
         try {
