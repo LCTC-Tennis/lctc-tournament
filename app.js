@@ -94,7 +94,11 @@ function loadSupabaseConfig() {
         try {
             supabaseConfig = JSON.parse(saved);
             if (supabaseConfig && supabaseConfig.url && supabaseConfig.key) {
-                supabase = window.supabase.createClient(supabaseConfig.url, supabaseConfig.key);
+                if (window.supabase) {
+                    supabase = window.supabase.createClient(supabaseConfig.url, supabaseConfig.key);
+                } else {
+                    console.error("Le SDK Supabase n'a pas pu être chargé (window.supabase est indéfini).");
+                }
             }
         } catch (e) {
             console.error("Erreur lors de la lecture de la configuration Supabase :", e);
@@ -713,54 +717,68 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // Supabase Configuration Event Listeners
-    dom.btnSupabaseConfig.addEventListener("click", () => {
-        dom.supabaseModal.classList.add("active");
-        dom.supabaseUrl.value = (supabaseConfig && supabaseConfig.url) ? supabaseConfig.url : "https://dhnlbczcwovvlpgsjbxb.supabase.co";
-        dom.supabaseKey.value = (supabaseConfig && supabaseConfig.key) ? supabaseConfig.key : "";
-    });
-
-    dom.btnCloseSupabase.addEventListener("click", () => {
-        dom.supabaseModal.classList.remove("active");
-    });
-
-    dom.supabaseModal.addEventListener("click", (e) => {
-        if (e.target === dom.supabaseModal) {
-            dom.supabaseModal.classList.remove("active");
-        }
-    });
-
-    dom.btnSaveSupabase.addEventListener("click", () => {
-        const url = dom.supabaseUrl.value.trim();
-        const key = dom.supabaseKey.value.trim();
-        if (!url || !key) {
-            alert("Veuillez renseigner l'URL et la Anon Key de votre projet Supabase.");
-            return;
-        }
-        const config = { url, key };
-        localStorage.setItem("tc_la_ciotat_supabase_config", JSON.stringify(config));
-        supabaseConfig = config;
-        supabase = window.supabase.createClient(config.url, config.key);
-        updateSupabaseStatus().then(() => {
-            syncFromSupabase().then(() => {
-                initUIFromActiveTournament();
-                updateSupabaseStatus();
-                alert("Connexion Supabase établie et synchronisée avec succès !");
-            });
+    if (dom.btnSupabaseConfig && dom.supabaseModal) {
+        dom.btnSupabaseConfig.addEventListener("click", () => {
+            dom.supabaseModal.classList.add("active");
+            dom.supabaseUrl.value = (supabaseConfig && supabaseConfig.url) ? supabaseConfig.url : "https://dhnlbczcwovvlpgsjbxb.supabase.co";
+            dom.supabaseKey.value = (supabaseConfig && supabaseConfig.key) ? supabaseConfig.key : "";
         });
-        dom.supabaseModal.classList.remove("active");
-    });
+    }
 
-    dom.btnClearSupabase.addEventListener("click", () => {
-        if (confirm("Voulez-vous déconnecter Supabase ? Les données ne seront plus synchronisées dans le Cloud.")) {
-            localStorage.removeItem("tc_la_ciotat_supabase_config");
-            supabaseConfig = null;
-            supabase = null;
-            updateSupabaseStatus();
+    if (dom.btnCloseSupabase && dom.supabaseModal) {
+        dom.btnCloseSupabase.addEventListener("click", () => {
             dom.supabaseModal.classList.remove("active");
-            alert("Supabase déconnecté. Mode local uniquement.");
-            initUIFromActiveTournament();
-        }
-    });
+        });
+    }
+
+    if (dom.supabaseModal) {
+        dom.supabaseModal.addEventListener("click", (e) => {
+            if (e.target === dom.supabaseModal) {
+                dom.supabaseModal.classList.remove("active");
+            }
+        });
+    }
+
+    if (dom.btnSaveSupabase && dom.supabaseModal) {
+        dom.btnSaveSupabase.addEventListener("click", () => {
+            const url = dom.supabaseUrl.value.trim();
+            const key = dom.supabaseKey.value.trim();
+            if (!url || !key) {
+                alert("Veuillez renseigner l'URL et la Anon Key de votre projet Supabase.");
+                return;
+            }
+            const config = { url, key };
+            localStorage.setItem("tc_la_ciotat_supabase_config", JSON.stringify(config));
+            supabaseConfig = config;
+            if (window.supabase) {
+                supabase = window.supabase.createClient(config.url, config.key);
+                updateSupabaseStatus().then(() => {
+                    syncFromSupabase().then(() => {
+                        initUIFromActiveTournament();
+                        updateSupabaseStatus();
+                        alert("Connexion Supabase établie et synchronisée avec succès !");
+                    });
+                });
+            } else {
+                alert("Erreur : Le SDK Supabase n'a pas pu être chargé. Veuillez recharger la page ou désactiver vos bloqueurs de publicité.");
+            }
+            dom.supabaseModal.classList.remove("active");
+        });
+    }
+
+    if (dom.btnClearSupabase && dom.supabaseModal) {
+        dom.btnClearSupabase.addEventListener("click", () => {
+            if (confirm("Voulez-vous déconnecter Supabase ? Les données ne seront plus synchronisées dans le Cloud.")) {
+                localStorage.removeItem("tc_la_ciotat_supabase_config");
+                supabaseConfig = null;
+                supabase = null;
+                updateSupabaseStatus();
+                dom.supabaseModal.classList.remove("active");
+                alert("Supabase déconnecté. Mode local uniquement.");
+                initUIFromActiveTournament();
+            }
+        });
+    }
 
     // WO Checkboxes logic (mutual exclusivity and auto score)
     dom.woP1.addEventListener("change", () => {
