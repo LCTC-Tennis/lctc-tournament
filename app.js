@@ -72,15 +72,112 @@ let appState = {
 };
 
 let state = null; // will reference the active tournament
+let supabase = null;
+let supabaseConfig = null; // { url, key }
+
+// Load Supabase configuration
+function loadSupabaseConfig() {
+    const saved = localStorage.getItem("tc_la_ciotat_supabase_config");
+    if (saved) {
+        try {
+            supabaseConfig = JSON.parse(saved);
+            if (supabaseConfig && supabaseConfig.url && supabaseConfig.key) {
+                supabase = window.supabase.createClient(supabaseConfig.url, supabaseConfig.key);
+            }
+        } catch (e) {
+            console.error("Erreur lors de la lecture de la configuration Supabase :", e);
+        }
+    }
+}
+
+// Update the Supabase status indicator badge in the UI
+async function updateSupabaseStatus() {
+    const badge = document.getElementById("supabase-status-badge");
+    const dot = document.getElementById("supabase-status-dot");
+    const text = document.getElementById("supabase-status-text");
+    
+    if (!badge || !dot || !text) return;
+    
+    if (!supabase) {
+        dot.style.color = "#94a3b8"; // grey
+        text.textContent = "Local";
+        badge.style.borderColor = "rgba(255,255,255,0.1)";
+        badge.style.color = "#94a3b8";
+        return;
+    }
+    
+    try {
+        const { data, error } = await supabase.from('tournaments').select('id').limit(1);
+        if (error) throw error;
+        
+        dot.style.color = "#22c55e"; // green
+        text.textContent = "Cloud";
+        badge.style.borderColor = "rgba(34,197,94,0.3)";
+        badge.style.color = "#22c55e";
+    } catch (err) {
+        console.error("Erreur de connexion Supabase :", err);
+        dot.style.color = "#ef4444"; // red
+        text.textContent = "Erreur";
+        badge.style.borderColor = "rgba(239,68,68,0.3)";
+        badge.style.color = "#ef4444";
+    }
+}
+
+// Upload/Sync a single tournament to Supabase
+async function syncTournamentToSupabase(t) {
+    if (!supabase) return;
+    try {
+        const { error } = await supabase.from('tournaments').upsert({
+            id: t.id,
+            name: t.name,
+            data: t,
+            updated_at: new Date().toISOString()
+        });
+        if (error) throw error;
+    } catch (e) {
+        console.error(`Erreur d'upsert pour le tournoi ${t.id} :`, e);
+    }
+}
+
+// Fetch and sync tournaments from Supabase
+async function syncFromSupabase() {
+    if (!supabase) return;
+    try {
+        const { data, error } = await supabase.from('tournaments').select('*');
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+            appState.tournaments = data.map(item => item.data);
+            const exists = appState.tournaments.some(t => t.id === appState.activeTournamentId);
+            if (!exists && appState.tournaments.length > 0) {
+                appState.activeTournamentId = appState.tournaments[0].id;
+            }
+            localStorage.setItem("tc_la_ciotat_app_state", JSON.stringify(appState));
+            state = appState.tournaments.find(t => t.id === appState.activeTournamentId);
+        } else {
+            // Push local state if remote is empty
+            for (const t of appState.tournaments) {
+                await syncTournamentToSupabase(t);
+            }
+        }
+    } catch (e) {
+        console.error("Erreur lors de la synchronisation depuis Supabase :", e);
+    }
+}
 
 // Generate UUID for players & matches
 function generateId() {
     return Math.random().toString(36).substring(2, 9);
 }
 
-// Save state to LocalStorage
+// Save state to LocalStorage (and Supabase if connected)
 function saveState() {
     localStorage.setItem("tc_la_ciotat_app_state", JSON.stringify(appState));
+    if (supabase && state) {
+        syncTournamentToSupabase(state).catch(err => {
+            console.error("Erreur sync auto Supabase :", err);
+        });
+    }
 }
 
 // Load state from LocalStorage
@@ -200,12 +297,33 @@ document.addEventListener("DOMContentLoaded", () => {
         winnerModal: document.getElementById("winner-modal"),
         winnerFullname: document.getElementById("winner-fullname"),
         winnerStatsDetails: document.getElementById("winner-stats-details"),
-        btnCloseWinner: document.getElementById("btn-close-winner")
+        btnCloseWinner: document.getElementById("btn-close-winner"),
+
+        // Supabase Configuration
+        btnSupabaseConfig: document.getElementById("btn-supabase-config"),
+        supabaseStatusBadge: document.getElementById("supabase-status-badge"),
+        supabaseStatusDot: document.getElementById("supabase-status-dot"),
+        supabaseStatusText: document.getElementById("supabase-status-text"),
+        supabaseModal: document.getElementById("supabase-modal"),
+        btnCloseSupabase: document.getElementById("btn-close-supabase"),
+        supabaseUrl: document.getElementById("supabase-url"),
+        supabaseKey: document.getElementById("supabase-key"),
+        btnClearSupabase: document.getElementById("btn-clear-supabase"),
+        btnSaveSupabase: document.getElementById("btn-save-supabase")
     };
 
     // Load Initial State
     loadState();
+    loadSupabaseConfig();
     initUIFromActiveTournament();
+
+    if (supabase) {
+        updateSupabaseStatus();
+        syncFromSupabase().then(() => {
+            initUIFromActiveTournament();
+            updateSupabaseStatus();
+        });
+    }
 
     // ----------------------------------------------------------------------
     // EVENT LISTENERS: Configuration
@@ -312,10 +430,18 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
         if (confirm(`Êtes-vous sûr de vouloir supprimer le tournoi "${state.name}" ? Toutes les données seront perdues définitivement.`)) {
+            const idToDelete = state.id;
             appState.tournaments = appState.tournaments.filter(t => t.id !== state.id);
             appState.activeTournamentId = appState.tournaments[0].id;
             state = appState.tournaments[0];
             saveState();
+            
+            if (supabase) {
+                supabase.from('tournaments').delete().eq('id', idToDelete).catch(err => {
+                    console.error("Erreur de suppression du tournoi distant :", err);
+                });
+            }
+            
             initUIFromActiveTournament();
         }
     });
@@ -572,6 +698,56 @@ document.addEventListener("DOMContentLoaded", () => {
     dom.btnCloseModal.addEventListener("click", closeScoreModal);
     dom.scoreModal.addEventListener("click", (e) => {
         if (e.target === dom.scoreModal) closeScoreModal();
+    });
+
+    // Supabase Configuration Event Listeners
+    dom.btnSupabaseConfig.addEventListener("click", () => {
+        dom.supabaseModal.classList.add("active");
+        dom.supabaseUrl.value = (supabaseConfig && supabaseConfig.url) ? supabaseConfig.url : "https://dhnlbczcwovvlpgsjbxb.supabase.co";
+        dom.supabaseKey.value = (supabaseConfig && supabaseConfig.key) ? supabaseConfig.key : "";
+    });
+
+    dom.btnCloseSupabase.addEventListener("click", () => {
+        dom.supabaseModal.classList.remove("active");
+    });
+
+    dom.supabaseModal.addEventListener("click", (e) => {
+        if (e.target === dom.supabaseModal) {
+            dom.supabaseModal.classList.remove("active");
+        }
+    });
+
+    dom.btnSaveSupabase.addEventListener("click", () => {
+        const url = dom.supabaseUrl.value.trim();
+        const key = dom.supabaseKey.value.trim();
+        if (!url || !key) {
+            alert("Veuillez renseigner l'URL et la Anon Key de votre projet Supabase.");
+            return;
+        }
+        const config = { url, key };
+        localStorage.setItem("tc_la_ciotat_supabase_config", JSON.stringify(config));
+        supabaseConfig = config;
+        supabase = window.supabase.createClient(config.url, config.key);
+        updateSupabaseStatus().then(() => {
+            syncFromSupabase().then(() => {
+                initUIFromActiveTournament();
+                updateSupabaseStatus();
+                alert("Connexion Supabase établie et synchronisée avec succès !");
+            });
+        });
+        dom.supabaseModal.classList.remove("active");
+    });
+
+    dom.btnClearSupabase.addEventListener("click", () => {
+        if (confirm("Voulez-vous déconnecter Supabase ? Les données ne seront plus synchronisées dans le Cloud.")) {
+            localStorage.removeItem("tc_la_ciotat_supabase_config");
+            supabaseConfig = null;
+            supabase = null;
+            updateSupabaseStatus();
+            dom.supabaseModal.classList.remove("active");
+            alert("Supabase déconnecté. Mode local uniquement.");
+            initUIFromActiveTournament();
+        }
     });
 
     // WO Checkboxes logic (mutual exclusivity and auto score)
