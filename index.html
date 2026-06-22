@@ -12,6 +12,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Supabase JS Client -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- SheetJS for Excel/CSV import -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -79,13 +81,6 @@
                             <div class="form-group">
                                 <label for="tournament-name">Nom du Tournoi :</label>
                                 <input type="text" id="tournament-name" placeholder="Nom du tournoi" class="form-control" style="width: 100%;" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="tournament-type">Type de Tournoi :</label>
-                                <select id="tournament-type">
-                                    <option value="pools" selected>Poules + Tableau Final</option>
-                                    <option value="progressive">Élimination Directe Progressive (Ten'Up)</option>
-                                </select>
                             </div>
                             <div class="form-group" id="pool-algorithm-group">
                                 <label for="pool-algorithm">Répartition des Poules :</label>
@@ -168,6 +163,14 @@
                                     <i class="fa-solid fa-plus"></i> Ajouter au Tournoi
                                 </button>
                             </form>
+                            <div class="import-players-divider" style="text-align: center; color: var(--text-muted); font-size: 0.8rem; margin: 15px 0; position: relative;">
+                                <span style="background: rgba(15, 23, 42, 0.95); padding: 0 10px; position: relative; z-index: 2;">OU</span>
+                                <div style="position: absolute; top: 50%; left: 0; right: 0; border-top: 1px solid var(--border-color); z-index: 1;"></div>
+                            </div>
+                            <button id="btn-import-players-csv" class="btn btn-secondary btn-block">
+                                <i class="fa-solid fa-file-csv"></i> Importer Joueurs (Excel / CSV)
+                            </button>
+                            <input type="file" id="input-import-players-csv" accept=".csv,.xlsx,.xls" style="display: none;">
                         </div>
 
                         <!-- Data Actions -->

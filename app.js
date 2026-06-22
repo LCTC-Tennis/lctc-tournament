@@ -249,7 +249,7 @@ document.addEventListener("DOMContentLoaded", () => {
         btnNewTournament: document.getElementById("btn-new-tournament"),
         btnDeleteTournament: document.getElementById("btn-delete-tournament"),
         tournamentName: document.getElementById("tournament-name"),
-        tournamentType: document.getElementById("tournament-type"),
+        tournamentType: document.getElementById("tournament-type"), // kept for safety, can be null
         poolAlgorithm: document.getElementById("pool-algorithm"),
         poolAlgorithmGroup: document.getElementById("pool-algorithm-group"),
         qualifiersPerPool: document.getElementById("qualifiers-per-pool"),
@@ -271,6 +271,8 @@ document.addEventListener("DOMContentLoaded", () => {
         btnImportTrigger: document.getElementById("btn-import-trigger"),
         btnImport: document.getElementById("btn-import"),
         btnReset: document.getElementById("btn-reset"),
+        btnImportPlayersCsv: document.getElementById("btn-import-players-csv"),
+        inputImportPlayersCsv: document.getElementById("input-import-players-csv"),
 
         // Tabs
         tabBtns: document.querySelectorAll(".tab-btn"),
@@ -349,39 +351,29 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!state) return;
         
         dom.tournamentName.value = state.name || "";
-        dom.tournamentType.value = state.type || "pools";
+        if (dom.tournamentType) dom.tournamentType.value = state.type || "pools";
         dom.poolAlgorithm.value = state.algorithm || "homogeneous";
         dom.qualifiersPerPool.value = (state.qualifiersPerPool || 2).toString();
         dom.matchFormat.value = state.matchFormat || "classic";
 
-        // Show/hide based on tournament type
-        if (state.type === "progressive") {
-            dom.poolAlgorithmGroup.style.display = "none";
-            dom.qualifiersGroup.style.display = "none";
-            dom.btnTabPools.style.display = "none";
-            dom.btnTabBracket.querySelector("span").textContent = "Tableau Progressif";
-            dom.btnGeneratePools.querySelector("span").textContent = "Générer le Tableau Direct";
-        } else {
-            dom.poolAlgorithmGroup.style.display = "block";
-            dom.qualifiersGroup.style.display = "block";
-            dom.btnTabPools.style.display = "inline-flex";
-            dom.btnTabBracket.querySelector("span").textContent = "3. Tableau Final";
-            dom.btnGeneratePools.querySelector("span").textContent = "Générer les Poules";
-        }
+        // Always show pools layout since progressive is removed
+        dom.poolAlgorithmGroup.style.display = "block";
+        dom.qualifiersGroup.style.display = "block";
+        dom.btnTabPools.style.display = "inline-flex";
+        dom.btnTabBracket.querySelector("span").textContent = "3. Tableau Final";
+        dom.btnGeneratePools.querySelector("span").textContent = "Générer les Poules";
 
         renderTournamentSelector();
         renderPlayersList();
         updateNavigationButtons();
 
         // Switch to active stage
-        if (state.stage === "pools" && state.type !== "progressive") {
+        if (state.stage === "pools") {
             switchTab("tab-pools");
             renderPoolsStage();
         } else if (state.stage === "bracket") {
             switchTab("tab-bracket");
-            if (state.type !== "progressive") {
-                renderPoolsStage();
-            }
+            renderPoolsStage();
             renderBracketStage();
         } else {
             switchTab("tab-config");
@@ -414,13 +406,11 @@ document.addEventListener("DOMContentLoaded", () => {
         const name = prompt("Nom du nouveau tournoi :", "Nouveau Tournoi");
         if (!name) return;
         
-        const type = confirm("Créer en mode 'Élimination Directe Progressive (Ten\'Up)' ?\n(Annuler pour le mode standard 'Poules + Tableau Final')") ? "progressive" : "pools";
-        
         const newId = "t_" + generateId();
         const newT = {
             id: newId,
             name: name,
-            type: type,
+            type: "pools",
             algorithm: "homogeneous",
             qualifiersPerPool: 2,
             matchFormat: "classic",
@@ -469,26 +459,15 @@ document.addEventListener("DOMContentLoaded", () => {
         renderTournamentSelector();
     });
 
-    // Tournament Type Change
-    dom.tournamentType.addEventListener("change", (e) => {
-        state.type = e.target.value;
-        if (state.type === "progressive") {
-            dom.poolAlgorithmGroup.style.display = "none";
-            dom.qualifiersGroup.style.display = "none";
-            dom.btnTabPools.style.display = "none";
-            dom.btnTabBracket.querySelector("span").textContent = "Tableau Progressif";
-            dom.btnGeneratePools.querySelector("span").textContent = "Générer le Tableau Direct";
-        } else {
-            dom.poolAlgorithmGroup.style.display = "block";
-            dom.qualifiersGroup.style.display = "block";
-            dom.btnTabPools.style.display = "inline-flex";
-            dom.btnTabBracket.querySelector("span").textContent = "3. Tableau Final";
-            dom.btnGeneratePools.querySelector("span").textContent = "Générer les Poules";
-        }
-        saveState();
-        renderTournamentSelector();
-        updateNavigationButtons();
-    });
+    // Tournament Type Change (kept for compatibility in code, does nothing as we only support pools)
+    if (dom.tournamentType) {
+        dom.tournamentType.addEventListener("change", (e) => {
+            state.type = "pools";
+            saveState();
+            renderTournamentSelector();
+            updateNavigationButtons();
+        });
+    }
 
     // Options changes
     dom.poolAlgorithm.addEventListener("change", (e) => {
@@ -537,6 +516,101 @@ document.addEventListener("DOMContentLoaded", () => {
             saveState();
         }
     });
+
+    // Import Players from Excel/CSV
+    if (dom.btnImportPlayersCsv && dom.inputImportPlayersCsv) {
+        dom.btnImportPlayersCsv.addEventListener("click", (e) => {
+            e.preventDefault();
+            dom.inputImportPlayersCsv.click();
+        });
+
+        dom.inputImportPlayersCsv.addEventListener("change", (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const data = evt.target.result;
+                    const workbook = window.XLSX.read(data, { type: 'binary' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const json = window.XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                    if (json.length < 2) {
+                        alert("Le fichier semble vide ou ne contient pas assez de données.");
+                        return;
+                    }
+
+                    // Normalize headers
+                    const headers = json[0].map(h => (h || '').toString().toLowerCase().trim());
+                    let idxLastName = headers.findIndex(h => h.includes('nom') || h.includes('lastname') || h.includes('last name') || h.includes('famille'));
+                    let idxFirstName = headers.findIndex(h => h.includes('prenom') || h.includes('prénom') || h.includes('firstname') || h.includes('first name'));
+                    let idxRank = headers.findIndex(h => h.includes('classement') || h.includes('rank') || h.includes('fft') || h.includes('valeur'));
+
+                    // Fallbacks
+                    if (idxLastName === -1) idxLastName = 0;
+                    if (idxFirstName === -1) idxFirstName = 1;
+                    if (idxRank === -1) idxRank = 2;
+
+                    let importedCount = 0;
+                    let ignoredCount = 0;
+
+                    for (let i = 1; i < json.length; i++) {
+                        const row = json[i];
+                        if (!row || row.length === 0) continue;
+
+                        const lastname = (row[idxLastName] || '').toString().trim().toUpperCase();
+                        let firstname = (row[idxFirstName] || '').toString().trim();
+                        if (firstname) {
+                            firstname = firstname.charAt(0).toUpperCase() + firstname.slice(1).toLowerCase();
+                        }
+                        let rank = (row[idxRank] || 'NC').toString().trim().toUpperCase();
+
+                        if (!lastname || !firstname) {
+                            ignoredCount++;
+                            continue;
+                        }
+
+                        // Normalize rank format (e.g. 30.1 -> 30/1, 30-1 -> 30/1)
+                        rank = rank.replace('.', '/').replace('-', '/');
+                        if (!RANK_VALUES.hasOwnProperty(rank)) {
+                            rank = "NC";
+                        }
+
+                        // Check duplicate
+                        const exists = state.players.some(p => 
+                            p.lastname.toLowerCase() === lastname.toLowerCase() && 
+                            p.firstname.toLowerCase() === firstname.toLowerCase()
+                        );
+
+                        if (!exists) {
+                            state.players.push({
+                                id: "p_" + generateId(),
+                                lastname,
+                                firstname,
+                                rank,
+                                rankValue: RANK_VALUES[rank] || 0
+                            });
+                            importedCount++;
+                        } else {
+                            ignoredCount++;
+                        }
+                    }
+
+                    saveState();
+                    renderPlayersList();
+                    alert(`${importedCount} joueurs importés avec succès ! (${ignoredCount} ignorés/doublons)`);
+                } catch (err) {
+                    console.error("Erreur lors de la lecture du fichier :", err);
+                    alert("Erreur lors de la lecture du fichier. Assurez-vous d'importer un fichier CSV ou Excel valide.");
+                }
+            };
+
+            reader.readAsBinaryString(file);
+            dom.inputImportPlayersCsv.value = "";
+        });
+    }
 
     // Action Buttons: Demo
     dom.btnDemo12.addEventListener("click", () => {
@@ -621,30 +695,20 @@ document.addEventListener("DOMContentLoaded", () => {
         dom.btnImport.value = "";
     });
 
-    // Generate Pools or Progressive Bracket
+    // Generate Pools
     dom.btnGeneratePools.addEventListener("click", () => {
-        if (state.type === "progressive") {
-            if (state.players.length < 2) {
-                alert("Minimum 2 joueurs requis pour générer le tableau.");
-                return;
-            }
-            if (confirm("Générer le tableau direct ? Cette action écrasera tout tableau ou match existant dans ce tournoi.")) {
-                generateProgressiveBracket();
-            }
-        } else {
-            const count = state.players.length;
-            if (count < 3) {
-                alert("Minimum 3 joueurs requis pour générer les poules.");
-                return;
-            }
-            if (confirm("Générer les poules ? Cette action écrasera toutes les poules ou matchs existants dans ce tournoi.")) {
-                generatePools();
-                state.stage = "pools";
-                saveState();
-                switchTab("tab-pools");
-                renderPoolsStage();
-                updateNavigationButtons();
-            }
+        const count = state.players.length;
+        if (count < 3) {
+            alert("Minimum 3 joueurs requis pour générer les poules.");
+            return;
+        }
+        if (confirm("Générer les poules ? Cette action écrasera toutes les poules ou matchs existants dans ce tournoi.")) {
+            generatePools();
+            state.stage = "pools";
+            saveState();
+            switchTab("tab-pools");
+            renderPoolsStage();
+            updateNavigationButtons();
         }
     });
 
@@ -1614,203 +1678,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // ALGORITHMS: BRACKET GENERATION (KNOCKOUT STAGE)
     // ==========================================================================
 
-    function generateProgressiveBracket() {
-        const sorted = [...state.players].sort((a, b) => a.rankValue - b.rankValue); // NC first
-        if (sorted.length < 2) {
-            alert("Minimum 2 joueurs requis pour générer le tableau.");
-            return;
-        }
-
-        state.pools = [];
-        state.matches = {};
-        
-        // Group players by rank value
-        const rankGroups = [];
-        let currentVal = null;
-        let currentGroup = [];
-
-        sorted.forEach(p => {
-            if (currentVal === null) {
-                currentVal = p.rankValue;
-                currentGroup = [p];
-            } else if (p.rankValue === currentVal) {
-                currentGroup.push(p);
-            } else {
-                rankGroups.push({
-                    rankValue: currentVal,
-                    players: currentGroup
-                });
-                currentVal = p.rankValue;
-                currentGroup = [p];
-            }
-        });
-        if (currentGroup.length > 0) {
-            rankGroups.push({
-                rankValue: currentVal,
-                players: currentGroup
-            });
-        }
-
-        // We will construct the rounds
-        const rounds = [];
-        let activeSurvivors = []; 
-        let matchCounter = 0;
-
-        const nextMatchId = () => `prog_match_${matchCounter++}`;
-
-        // Loop through rank groups
-        rankGroups.forEach((group, groupIdx) => {
-            const entrants = group.players;
-            const entrantsRankName = entrants[0].rank;
-
-            const roundPlayers = [];
-            
-            entrants.forEach(p => {
-                roundPlayers.push({ id: p.id, rankValue: p.rankValue, label: `${p.lastname} ${p.firstname}` });
-            });
-
-            activeSurvivors.forEach(s => {
-                roundPlayers.push(s); 
-            });
-
-            // Sort roundPlayers: highest rankValue first (so they get BYEs if odd, and play later)
-            roundPlayers.sort((a, b) => b.rankValue - a.rankValue);
-
-            const roundMatches = [];
-            const newSurvivors = [];
-
-            const M = roundPlayers.length;
-            if (M === 1) {
-                newSurvivors.push(roundPlayers[0]);
-            } else if (M > 1) {
-                const numMatches = Math.floor(M / 2);
-                const hasBye = M % 2 !== 0;
-
-                if (hasBye) {
-                    newSurvivors.push(roundPlayers[0]); // highest rank gets a BYE
-                }
-
-                const startIdx = hasBye ? 1 : 0;
-                for (let i = startIdx; i < roundPlayers.length; i += 2) {
-                    const p1 = roundPlayers[i];
-                    const p2 = roundPlayers[i + 1];
-                    const mId = nextMatchId();
-
-                    state.matches[mId] = {
-                        id: mId,
-                        p1Id: p1.id || null,
-                        p2Id: p2.id || null,
-                        p1Origin: p1.label || "",
-                        p2Origin: p2.label || "",
-                        p1MatchId: p1.matchId || null,
-                        p2MatchId: p2.matchId || null,
-                        p1Sets: null,
-                        p2Sets: null,
-                        sets: [
-                            { p1: null, p2: null },
-                            { p1: null, p2: null },
-                            { p1: null, p2: null }
-                        ],
-                        wo: null,
-                        played: false
-                    };
-
-                    roundMatches.push(mId);
-
-                    newSurvivors.push({
-                        matchId: mId,
-                        rankValue: Math.max(p1.rankValue, p2.rankValue),
-                        label: `Vainqueur Match ${mId.split('_').pop()}`
-                    });
-                }
-            }
-
-            if (roundMatches.length > 0) {
-                rounds.push({
-                    roundName: `Tour ${groupIdx + 1} (${entrantsRankName})`,
-                    matches: roundMatches
-                });
-            }
-
-            activeSurvivors = newSurvivors;
-        });
-
-        // Resolve activeSurvivors down to 1 single champion
-        let extraRoundIdx = 1;
-        while (activeSurvivors.length > 1) {
-            const roundMatches = [];
-            const newSurvivors = [];
-            const M = activeSurvivors.length;
-            const numMatches = Math.floor(M / 2);
-            const hasBye = M % 2 !== 0;
-
-            if (hasBye) {
-                newSurvivors.push(activeSurvivors[0]);
-            }
-
-            const startIdx = hasBye ? 1 : 0;
-            for (let i = startIdx; i < activeSurvivors.length; i += 2) {
-                const p1 = activeSurvivors[i];
-                const p2 = activeSurvivors[i + 1];
-                const mId = nextMatchId();
-
-                state.matches[mId] = {
-                    id: mId,
-                    p1Id: p1.id || null,
-                    p2Id: p2.id || null,
-                    p1Origin: p1.label || "",
-                    p2Origin: p2.label || "",
-                    p1MatchId: p1.matchId || null,
-                    p2MatchId: p2.matchId || null,
-                    p1Sets: null,
-                    p2Sets: null,
-                    sets: [
-                        { p1: null, p2: null },
-                        { p1: null, p2: null },
-                        { p1: null, p2: null }
-                    ],
-                    wo: null,
-                    played: false
-                };
-
-                roundMatches.push(mId);
-
-                newSurvivors.push({
-                    matchId: mId,
-                    rankValue: Math.max(p1.rankValue, p2.rankValue),
-                    label: `Vainqueur Match ${mId.split('_').pop()}`
-                });
-            }
-
-            rounds.push({
-                roundName: `Phase Finale - Tour ${extraRoundIdx++}`,
-                matches: roundMatches
-            });
-
-            activeSurvivors = newSurvivors;
-        }
-
-        state.bracket = {
-            rounds: rounds,
-            champion: null
-        };
-
-        state.stage = "bracket";
-        saveState();
-
-        propagateWinners();
-        
-        switchTab("tab-bracket");
-        renderBracketStage();
-        updateNavigationButtons();
-    }
-
     function generateBracket() {
-        if (state.type === "progressive") {
-            generateProgressiveBracket();
-            return;
-        }
-        
         // Step 1: Collect qualified players from pools.
         // We sort qualified players: pool winners first, then runners-up.
         const winners = [];
