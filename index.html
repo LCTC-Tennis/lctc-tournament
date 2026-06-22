@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestion de Tournoi - TC La Ciotat</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="main-header">
+            <div class="logo-container">
+                <div class="tennis-logo">
+                    <svg viewBox="0 0 100 100" class="logo-svg">
+                        <!-- Tennis Ball with Sea Waves -->
+                        <circle cx="50" cy="50" r="45" class="ball-bg" />
+                        <path d="M15,50 Q50,15 85,50" class="ball-seam" />
+                        <path d="M15,50 Q50,85 85,50" class="ball-seam" />
+                        <!-- Waves at the bottom -->
+                        <path d="M20,75 Q35,70 50,75 T80,75" class="sea-wave" />
+                        <path d="M25,82 Q40,78 55,82 T75,82" class="sea-wave second-wave" />
+                    </svg>
+                </div>
+                <div class="logo-text">
+                    <h1>TC LA CIOTAT</h1>
+                    <p>Gestionnaire de Tournoi Interne</p>
+                </div>
+            </div>
+            <div class="tournament-info" style="display: flex; align-items: center; gap: 10px;">
+                <select id="tournament-selector" class="form-control" style="background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 8px 12px; font-weight: 500; font-family: inherit; font-size: 1rem; width: auto; min-width: 200px;">
+                    <!-- Rempli dynamiquement -->
+                </select>
+                <button id="btn-new-tournament" class="btn btn-primary" style="padding: 8px 12px; font-size: 0.9rem;" title="Créer un nouveau tournoi">
+                    <i class="fa-solid fa-plus"></i> Nouveau
+                </button>
+                <button id="btn-delete-tournament" class="btn btn-danger btn-icon-only" style="padding: 8px 12px; font-size: 0.9rem;" title="Supprimer le tournoi actuel">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <nav class="nav-tabs">
+            <button class="tab-btn active" data-tab="tab-config">
+                <i class="fa-solid fa-users-gear"></i> <span>1. Joueurs & Options</span>
+            </button>
+            <button class="tab-btn" data-tab="tab-pools" id="btn-tab-pools" disabled>
+                <i class="fa-solid fa-table-cells"></i> <span>2. Phase de Poules</span>
+            </button>
+            <button class="tab-btn" data-tab="tab-bracket" id="btn-tab-bracket" disabled>
+                <i class="fa-solid fa-sitemap"></i> <span>3. Tableau Final</span>
+            </button>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            
+            <!-- SECTION 1: CONFIGURATION -->
+            <section id="tab-config" class="tab-pane active">
+                <div class="config-grid">
+                    <!-- Left: Options & Add Player -->
+                    <div class="config-sidebar">
+                        <div class="card glass-card">
+                            <h3><i class="fa-solid fa-sliders"></i> Options du Tournoi</h3>
+                            <div class="form-group">
+                                <label for="tournament-name">Nom du Tournoi :</label>
+                                <input type="text" id="tournament-name" placeholder="Nom du tournoi" class="form-control" style="width: 100%;" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="tournament-type">Type de Tournoi :</label>
+                                <select id="tournament-type">
+                                    <option value="pools" selected>Poules + Tableau Final</option>
+                                    <option value="progressive">Élimination Directe Progressive (Ten'Up)</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="pool-algorithm-group">
+                                <label for="pool-algorithm">Répartition des Poules :</label>
+                                <select id="pool-algorithm">
+                                    <option value="homogeneous" selected>Niveaux homogènes (poules équilibrées en interne)</option>
+                                    <option value="balanced">Niveaux équilibrés (têtes de série réparties)</option>
+                                </select>
+                                <span class="help-text">
+                                    <strong>Homogènes</strong> : les joueurs de classements très proches s'affrontent entre eux.
+                                    <br><strong>Équilibrés</strong> : chaque poule aura un joueur fort, un moyen, etc.
+                                </span>
+                            </div>
+                            <div class="form-group" id="qualifiers-group">
+                                <label for="qualifiers-per-pool">Qualifiés par Poule pour le Tableau Final :</label>
+                                <select id="qualifiers-per-pool">
+                                    <option value="1">1er uniquement</option>
+                                    <option value="2" selected>Les 2 premiers</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="match-format">Format des Matchs :</label>
+                                <select id="match-format">
+                                    <option value="classic" selected>Standard : 2 sets gagnants à 6 jeux</option>
+                                    <option value="super-tiebreak">Super tie-break au 3ème set (10 points)</option>
+                                    <option value="senior-no-ad">Sénior : Super tie-break (10 pts) + No-Ad (point décisif)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="card glass-card">
+                            <h3><i class="fa-solid fa-user-plus"></i> Ajouter un Joueur</h3>
+                            <form id="add-player-form">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="player-lastname">Nom</label>
+                                        <input type="text" id="player-lastname" placeholder="Dupont" required autocomplete="off">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="player-firstname">Prénom</label>
+                                        <input type="text" id="player-firstname" placeholder="Jean" required autocomplete="off">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="player-rank">Classement FFT</label>
+                                    <select id="player-rank">
+                                        <optgroup label="Non Classé">
+                                            <option value="NC" selected>NC</option>
+                                        </optgroup>
+                                        <optgroup label="4ème Série">
+                                            <option value="40">40</option>
+                                            <option value="30/5">30/5</option>
+                                            <option value="30/4">30/4</option>
+                                            <option value="30/3">30/3</option>
+                                            <option value="30/2">30/2</option>
+                                            <option value="30/1">30/1</option>
+                                        </optgroup>
+                                        <optgroup label="3ème Série">
+                                            <option value="30">30</option>
+                                            <option value="15/5">15/5</option>
+                                            <option value="15/4">15/4</option>
+                                            <option value="15/3">15/3</option>
+                                            <option value="15/2">15/2</option>
+                                            <option value="15/1">15/1</option>
+                                        </optgroup>
+                                        <optgroup label="2ème Série">
+                                            <option value="15">15</option>
+                                            <option value="5/6">5/6</option>
+                                            <option value="4/6">4/6</option>
+                                            <option value="3/6">3/6</option>
+                                            <option value="2/6">2/6</option>
+                                            <option value="1/6">1/6</option>
+                                            <option value="0">0</option>
+                                            <option value="-2/6">-2/6</option>
+                                            <option value="-4/6">-4/6</option>
+                                            <option value="-15">-15</option>
+                                        </optgroup>
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-block">
+                                    <i class="fa-solid fa-plus"></i> Ajouter au Tournoi
+                                </button>
+                            </form>
+                        </div>
+
+                        <!-- Data Actions -->
+                        <div class="card glass-card">
+                            <h3><i class="fa-solid fa-database"></i> Actions & Données</h3>
+                            <div class="action-grid">
+                                <button id="btn-demo-12" class="btn btn-secondary">
+                                    <i class="fa-solid fa-wand-magic-sparkles"></i> Démo 12 Joueurs
+                                </button>
+                                <button id="btn-demo-16" class="btn btn-secondary">
+                                    <i class="fa-solid fa-wand-magic-sparkles"></i> Démo 16 Joueurs
+                                </button>
+                                <button id="btn-export" class="btn btn-outline">
+                                    <i class="fa-solid fa-download"></i> Exporter JSON
+                                </button>
+                                <button id="btn-import-trigger" class="btn btn-outline">
+                                    <i class="fa-solid fa-upload"></i> Importer JSON
+                                </button>
+                                <input type="file" id="btn-import" accept=".json" style="display: none;">
+                                <button id="btn-reset" class="btn btn-danger btn-block">
+                                    <i class="fa-solid fa-trash-can"></i> Réinitialiser Tout
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Players List & Generation -->
+                    <div class="config-main">
+                        <div class="card glass-card flex-grow">
+                            <div class="card-header-flex">
+                                <h3><i class="fa-solid fa-users"></i> Joueurs Inscrits (<span id="player-count">0</span>)</h3>
+                                <div class="badge info-badge" id="pool-info-badge">Minimum 3 joueurs requis</div>
+                            </div>
+                            
+                            <div class="players-list-wrapper">
+                                <table class="players-table" id="players-table">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Nom complet</th>
+                                            <th>Classement FFT</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="players-tbody">
+                                        <!-- Dynamic rows -->
+                                    </tbody>
+                                </table>
+                                <div class="empty-state" id="players-empty-state">
+                                    <i class="fa-solid fa-user-slash"></i>
+                                    <p>Aucun joueur inscrit pour le moment.</p>
+                                    <p class="sub-text">Ajoutez des joueurs manuellement ou chargez un jeu de démonstration ci-contre.</p>
+                                </div>
+                            </div>
+
+                            <div class="card-actions">
+                                <button id="btn-generate-pools" class="btn btn-accent btn-large" disabled>
+                                    <i class="fa-solid fa-play"></i> Générer les Poules
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 2: PHASE DE POULES -->
+            <section id="tab-pools" class="tab-pane">
+                <div class="section-actions-bar">
+                    <h2><i class="fa-solid fa-table-cells"></i> Résultats de la Phase de Poules</h2>
+                    <div class="bar-buttons">
+                        <button id="btn-back-to-config" class="btn btn-secondary">
+                            <i class="fa-solid fa-arrow-left"></i> Retour aux Joueurs
+                        </button>
+                        <button id="btn-generate-bracket" class="btn btn-accent" disabled>
+                            <i class="fa-solid fa-sitemap"></i> Clôturer & Lancer le Tableau Final <i class="fa-solid fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Pools Grid Container -->
+                <div class="pools-grid" id="pools-container">
+                    <!-- Dynamic pools will be rendered here -->
+                </div>
+            </section>
+
+            <!-- SECTION 3: TABLEAU FINAL -->
+            <section id="tab-bracket" class="tab-pane">
+                <div class="section-actions-bar">
+                    <h2><i class="fa-solid fa-trophy"></i> Tableau Final Éliminatoire</h2>
+                    <div class="bar-buttons">
+                        <button id="btn-toggle-bracket-config" class="btn btn-secondary">
+                            <i class="fa-solid fa-sliders"></i> Configurer les Paires
+                        </button>
+                        <button id="btn-back-to-pools" class="btn btn-secondary">
+                            <i class="fa-solid fa-arrow-left"></i> Retour aux Poules
+                        </button>
+                        <button id="btn-print" class="btn btn-outline">
+                            <i class="fa-solid fa-print"></i> Imprimer
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Bracket Config Accordion Panel -->
+                <div class="bracket-config-panel card glass-card" id="bracket-config-panel" style="display: none; margin-bottom: 20px;">
+                    <h3><i class="fa-solid fa-sliders"></i> Configuration des Affrontements du 1er Tour</h3>
+                    <p class="help-text" style="margin-bottom: 15px;">Associez chaque emplacement du 1er tour à une place qualificative de poule ou à un Exempt (BYE).</p>
+                    <div class="bracket-config-matches" id="bracket-config-matches-container">
+                        <!-- Dynamic dropdowns will be rendered here -->
+                    </div>
+                </div>
+
+                <!-- Bracket Container -->
+                <div class="bracket-outer">
+                    <div class="bracket-wrapper" id="bracket-container">
+                        <!-- Dynamic bracket columns (Quarts, Demis, Finale, Champion) -->
+                    </div>
+                </div>
+            </section>
+
+        </main>
+        
+        <!-- Footer -->
+        <footer class="main-footer">
+            <p>&copy; 2026 Tennis Club de La Ciotat - Port de plaisance, 13600 La Ciotat. Tous droits réservés.</p>
+        </footer>
+    </div>
+
+    <!-- Match score modal modal-glass -->
+    <div class="modal-overlay" id="score-modal">
+        <div class="modal-content glass-card animate-zoom">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-tennis-ball"></i> Saisie du Score</h3>
+                <button class="btn-close-modal" id="btn-close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <h4 id="modal-match-title" class="match-vs-title">Joueur A vs Joueur B</h4>
+                <div style="text-align: center; margin-bottom: 1rem;">
+                    <span id="modal-match-format-badge" class="badge info-badge" style="display: inline-block;">Format</span>
+                </div>
+                
+                <div class="score-input-table">
+                    <div class="score-row headers">
+                        <div class="cell player-name-cell">Joueurs</div>
+                        <div class="cell set-cell">Set 1</div>
+                        <div class="cell set-cell">Set 2</div>
+                        <div class="cell set-cell">Set 3 / STB</div>
+                        <div class="cell check-cell">W.O.</div>
+                    </div>
+                    
+                    <!-- Player 1 -->
+                    <div class="score-row" id="modal-p1-row">
+                        <div class="cell player-name-cell font-bold" id="modal-p1-name">Joueur 1</div>
+                        <div class="cell set-cell">
+                            <input type="number" id="score-p1-s1" min="0" max="7" class="set-input">
+                        </div>
+                        <div class="cell set-cell">
+                            <input type="number" id="score-p1-s2" min="0" max="7" class="set-input">
+                        </div>
+                        <div class="cell set-cell">
+                            <input type="number" id="score-p1-s3" min="0" max="30" class="set-input" placeholder="0">
+                        </div>
+                        <div class="cell check-cell">
+                            <input type="radio" name="wo-selector" id="wo-p2" value="p2">
+                        </div>
+                    </div>
+
+                    <!-- Player 2 -->
+                    <div class="score-row" id="modal-p2-row">
+                        <div class="cell player-name-cell font-bold" id="modal-p2-name">Joueur 2</div>
+                        <div class="cell set-cell">
+                            <input type="number" id="score-p2-s1" min="0" max="7" class="set-input">
+                        </div>
+                        <div class="cell set-cell">
+                            <input type="number" id="score-p2-s2" min="0" max="7" class="set-input">
+                        </div>
+                        <div class="cell set-cell">
+                            <input type="number" id="score-p2-s3" min="0" max="30" class="set-input" placeholder="0">
+                        </div>
+                        <div class="cell check-cell">
+                            <input type="radio" name="wo-selector" id="wo-p1" value="p1">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="wo-info-text">
+                    <p class="help-text">Cochez "W.O." si l'un des joueurs a déclaré forfait. Le vainqueur remportera le match par forfait (0 point pour le forfait, pas de jeux d'écart comptabilisés).</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="btn-clear-score" class="btn btn-secondary">
+                    <i class="fa-solid fa-eraser"></i> Effacer le Score
+                </button>
+                <button id="btn-save-score" class="btn btn-accent">
+                    <i class="fa-solid fa-floppy-disk"></i> Enregistrer le Score
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Celebration / Winner Modal -->
+    <div class="modal-overlay" id="winner-modal">
+        <div class="modal-content glass-card winner-card animate-bounce">
+            <div class="confetti-container" id="confetti-canvas"></div>
+            <div class="modal-body text-center">
+                <div class="trophy-icon">
+                    <i class="fa-solid fa-trophy text-accent animate-pulse"></i>
+                </div>
+                <h2>Vainqueur du Tournoi !</h2>
+                <h1 id="winner-fullname" class="text-glow">Jean DUPONT</h1>
+                <p class="winner-club">TC LA CIOTAT</p>
+                <div class="winner-stats" id="winner-stats-details">
+                    <!-- Dynamic stats -->
+                </div>
+                <button id="btn-close-winner" class="btn btn-accent mt-4">
+                    <i class="fa-solid fa-circle-check"></i> Super !
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

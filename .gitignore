@@ -1,0 +1,5 @@
+.gemini/
+.idea/
+.vscode/
+*.log
+Thumbs.db
