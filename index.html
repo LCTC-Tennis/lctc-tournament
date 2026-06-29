@@ -46,12 +46,9 @@
                 <button id="btn-delete-tournament" class="btn btn-danger btn-icon-only" style="padding: 8px 12px; font-size: 0.9rem;" title="Supprimer le tournoi actuel">
                     <i class="fa-solid fa-trash"></i>
                 </button>
-                <button id="btn-supabase-config" class="btn btn-secondary btn-icon-only" style="padding: 8px 12px; font-size: 0.9rem;" title="Configuration Supabase Cloud">
-                    <i class="fa-solid fa-cloud"></i>
+                <button id="btn-logout" class="btn btn-secondary btn-icon-only" style="padding: 8px 12px; font-size: 0.9rem;" title="Se déconnecter (Admin)">
+                    <i class="fa-solid fa-right-from-bracket"></i>
                 </button>
-                <span id="supabase-status-badge" class="badge" style="background: rgba(255,255,255,0.05); color: #94a3b8; border: 1px solid rgba(255,255,255,0.1); font-size: 0.8rem; display: flex; align-items: center; gap: 6px; height: 38px; border-radius: 6px; padding: 8px 12px;">
-                    <i class="fa-solid fa-circle" id="supabase-status-dot" style="font-size: 0.5rem; color: #94a3b8;"></i> <span id="supabase-status-text">Local</span>
-                </span>
             </div>
         </header>
 
@@ -391,39 +388,45 @@
         </div>
     </div>
 
-    <!-- Supabase Configuration Modal -->
-    <div class="modal-overlay" id="supabase-modal">
-        <div class="modal-content glass-card animate-zoom" style="max-width: 500px;">
-            <div class="modal-header">
-                <h3><i class="fa-solid fa-cloud"></i> Configuration Supabase</h3>
-                <button class="btn-close-modal" id="btn-close-supabase">&times;</button>
-            </div>
-            <div class="modal-body">
-                <p class="help-text" style="margin-bottom: 1.5rem;">
-                    Liez votre application à votre base de données Supabase pour sauvegarder automatiquement vos tournois dans le Cloud.
-                </p>
-                <div class="form-group" style="margin-bottom: 1rem;">
-                    <label for="supabase-url" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Supabase URL :</label>
-                    <input type="text" id="supabase-url" placeholder="https://dhnlbczcwovvlpgsjbxb.supabase.co" class="form-control" style="width: 100%;">
+    <!-- Login Screen Overlay -->
+    <div class="login-overlay" id="login-overlay">
+        <div class="login-card glass-card animate-zoom">
+            <div class="login-header" style="text-align: center; margin-bottom: 2rem;">
+                <div class="logo-container" style="display: inline-flex; justify-content: center; align-items: center; background: linear-gradient(135deg, var(--primary), var(--accent)); width: 70px; height: 70px; border-radius: 50%; box-shadow: 0 8px 32px rgba(99, 102, 241, 0.4); margin-bottom: 1rem;">
+                    <svg viewBox="0 0 100 100" style="width: 40px; height: 40px; fill: white;">
+                        <circle cx="50" cy="50" r="40" stroke="white" stroke-width="4" fill="none" />
+                        <line x1="20" y1="50" x2="80" y2="50" stroke="white" stroke-width="3" />
+                        <path d="M30,30 Q50,70 70,30" stroke="white" stroke-width="3" fill="none" />
+                    </svg>
                 </div>
-                <div class="form-group" style="margin-bottom: 1.5rem;">
-                    <label for="supabase-key" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Supabase Anon Key :</label>
-                    <input type="password" id="supabase-key" placeholder="Votre clé publique anonyme (anon key)" class="form-control" style="width: 100%;">
+                <h2 style="font-size: 1.8rem; font-weight: 700; background: linear-gradient(to right, #ffffff, #94a3b8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 0.25rem; font-family: inherit;">TC LA CIOTAT</h2>
+                <p style="color: var(--text-muted); font-size: 0.9rem;">Espace Administration - Tournoi Interne</p>
+            </div>
+            
+            <form id="login-form">
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label for="login-email" style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; font-weight: 500; color: #cbd5e1;">Adresse Email</label>
+                    <div style="position: relative;">
+                        <i class="fa-solid fa-envelope" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+                        <input type="email" id="login-email" placeholder="davhuin@gmail.com" required class="form-control" style="width: 100%; padding-left: 40px;" autocomplete="email">
+                    </div>
+                </div>
+                <div class="form-group" style="margin-bottom: 1.75rem;">
+                    <label for="login-password" style="display: block; margin-bottom: 0.5rem; font-size: 0.85rem; font-weight: 500; color: #cbd5e1;">Mot de passe</label>
+                    <div style="position: relative;">
+                        <i class="fa-solid fa-lock" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+                        <input type="password" id="login-password" placeholder="••••••••" required class="form-control" style="width: 100%; padding-left: 40px;" autocomplete="current-password">
+                    </div>
                 </div>
                 
-                <div class="badge" style="background: rgba(14, 165, 233, 0.1); color: var(--secondary); padding: 12px; border-radius: 6px; font-size: 0.8rem; line-height: 1.4; border: 1px solid rgba(14, 165, 233, 0.2); margin-bottom: 1rem; display: block; font-weight: normal; text-align: left;">
-                    <i class="fa-solid fa-shield-halved" style="margin-right: 6px; color: var(--accent);"></i>
-                    <strong>Sécurité :</strong> Les identifiants sont sauvegardés uniquement dans votre navigateur local. Ils ne sont jamais enregistrés sur GitHub pour éviter tout risque de sécurité.
+                <div id="login-error-msg" style="color: #ef4444; font-size: 0.85rem; text-align: center; margin-bottom: 1rem; display: none;">
+                    <i class="fa-solid fa-triangle-exclamation" style="margin-right: 6px;"></i> Identifiants incorrects. Veuillez réessayer.
                 </div>
-            </div>
-            <div class="modal-footer">
-                <button id="btn-clear-supabase" class="btn btn-danger">
-                    <i class="fa-solid fa-unlink"></i> Déconnecter
+                
+                <button type="submit" class="btn btn-accent btn-block" style="padding: 12px; font-size: 1rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; width: 100%;">
+                    <i class="fa-solid fa-right-to-bracket" style="margin-right: 8px;"></i> Se connecter
                 </button>
-                <button id="btn-save-supabase" class="btn btn-accent">
-                    <i class="fa-solid fa-cloud-arrow-up"></i> Connecter & Synchroniser
-                </button>
-            </div>
+            </form>
         </div>
     </div>
 

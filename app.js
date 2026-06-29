@@ -73,70 +73,18 @@ let appState = {
 
 let state = null; // will reference the active tournament
 let supabase = null;
-let supabaseConfig = null; // { url, key }
+const SUPABASE_URL = "https://dhnlbczcwovvlpgsjbxb.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRobmxiY3pjd292dmxwZ3NqYnhiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNTAzMzcsImV4cCI6MjA5NzcyNjMzN30.ggoyBStNWwWYzo454TNwA4L29gROB3fmcGMTOAuDVHY";
 
-// Load Supabase configuration
-function loadSupabaseConfig() {
-    // Check URL parameters for one-click setup
-    const urlParams = new URLSearchParams(window.location.search);
-    const paramUrl = urlParams.get('sb_url');
-    const paramKey = urlParams.get('sb_key');
-    
-    if (paramUrl && paramKey) {
-        const config = { url: decodeURIComponent(paramUrl), key: decodeURIComponent(paramKey) };
-        localStorage.setItem("tc_la_ciotat_supabase_config", JSON.stringify(config));
-        // Clear URL parameters to keep it clean in the address bar
-        window.history.replaceState({}, document.title, window.location.pathname);
-    }
-
-    const saved = localStorage.getItem("tc_la_ciotat_supabase_config");
-    if (saved) {
-        try {
-            supabaseConfig = JSON.parse(saved);
-            if (supabaseConfig && supabaseConfig.url && supabaseConfig.key) {
-                if (window.supabase) {
-                    supabase = window.supabase.createClient(supabaseConfig.url, supabaseConfig.key);
-                } else {
-                    console.error("Le SDK Supabase n'a pas pu être chargé (window.supabase est indéfini).");
-                }
-            }
-        } catch (e) {
-            console.error("Erreur lors de la lecture de la configuration Supabase :", e);
-        }
-    }
-}
-
-// Update the Supabase status indicator badge in the UI
-async function updateSupabaseStatus() {
-    const badge = document.getElementById("supabase-status-badge");
-    const dot = document.getElementById("supabase-status-dot");
-    const text = document.getElementById("supabase-status-text");
-    
-    if (!badge || !dot || !text) return;
-    
-    if (!supabase) {
-        dot.style.color = "#94a3b8"; // grey
-        text.textContent = "Local";
-        badge.style.borderColor = "rgba(255,255,255,0.1)";
-        badge.style.color = "#94a3b8";
-        return;
-    }
-    
+// Initialize Supabase in background
+if (window.supabase) {
     try {
-        const { data, error } = await supabase.from('tournaments').select('id').limit(1);
-        if (error) throw error;
-        
-        dot.style.color = "#22c55e"; // green
-        text.textContent = "Cloud";
-        badge.style.borderColor = "rgba(34,197,94,0.3)";
-        badge.style.color = "#22c55e";
-    } catch (err) {
-        console.error("Erreur de connexion Supabase :", err);
-        dot.style.color = "#ef4444"; // red
-        text.textContent = "Erreur";
-        badge.style.borderColor = "rgba(239,68,68,0.3)";
-        badge.style.color = "#ef4444";
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    } catch (e) {
+        console.error("Erreur lors de l'initialisation de Supabase :", e);
     }
+} else {
+    console.error("Le SDK Supabase n'a pas pu être chargé (window.supabase est indéfini).");
 }
 
 // Upload/Sync a single tournament to Supabase
@@ -317,31 +265,36 @@ document.addEventListener("DOMContentLoaded", () => {
         winnerStatsDetails: document.getElementById("winner-stats-details"),
         btnCloseWinner: document.getElementById("btn-close-winner"),
 
-        // Supabase Configuration
-        btnSupabaseConfig: document.getElementById("btn-supabase-config"),
-        supabaseStatusBadge: document.getElementById("supabase-status-badge"),
-        supabaseStatusDot: document.getElementById("supabase-status-dot"),
-        supabaseStatusText: document.getElementById("supabase-status-text"),
-        supabaseModal: document.getElementById("supabase-modal"),
-        btnCloseSupabase: document.getElementById("btn-close-supabase"),
-        supabaseUrl: document.getElementById("supabase-url"),
-        supabaseKey: document.getElementById("supabase-key"),
-        btnClearSupabase: document.getElementById("btn-clear-supabase"),
-        btnSaveSupabase: document.getElementById("btn-save-supabase")
+        // Login Screen Overlay
+        loginOverlay: document.getElementById("login-overlay"),
+        loginForm: document.getElementById("login-form"),
+        loginEmail: document.getElementById("login-email"),
+        loginPassword: document.getElementById("login-password"),
+        loginErrorMsg: document.getElementById("login-error-msg"),
+        btnLogout: document.getElementById("btn-logout")
     };
 
-    // Load Initial State
-    loadState();
-    loadSupabaseConfig();
-    initUIFromActiveTournament();
-
-    if (supabase) {
-        updateSupabaseStatus();
-        syncFromSupabase().then(() => {
+    // Auth & Session Check
+    function checkAuth() {
+        const isAuthenticated = localStorage.getItem("tc_lctc_admin_auth") === "true";
+        if (isAuthenticated) {
+            dom.loginOverlay.style.display = "none";
+            loadState();
             initUIFromActiveTournament();
-            updateSupabaseStatus();
-        });
+            
+            // Sync from Supabase in background
+            if (supabase) {
+                syncFromSupabase().then(() => {
+                    initUIFromActiveTournament();
+                });
+            }
+        } else {
+            dom.loginOverlay.style.display = "flex";
+        }
     }
+
+    // Initialize Auth state check
+    checkAuth();
 
     // ----------------------------------------------------------------------
     // EVENT LISTENERS: Configuration
@@ -780,66 +733,41 @@ document.addEventListener("DOMContentLoaded", () => {
         if (e.target === dom.scoreModal) closeScoreModal();
     });
 
-    // Supabase Configuration Event Listeners
-    if (dom.btnSupabaseConfig && dom.supabaseModal) {
-        dom.btnSupabaseConfig.addEventListener("click", () => {
-            dom.supabaseModal.classList.add("active");
-            dom.supabaseUrl.value = (supabaseConfig && supabaseConfig.url) ? supabaseConfig.url : "https://dhnlbczcwovvlpgsjbxb.supabase.co";
-            dom.supabaseKey.value = (supabaseConfig && supabaseConfig.key) ? supabaseConfig.key : "";
-        });
-    }
-
-    if (dom.btnCloseSupabase && dom.supabaseModal) {
-        dom.btnCloseSupabase.addEventListener("click", () => {
-            dom.supabaseModal.classList.remove("active");
-        });
-    }
-
-    if (dom.supabaseModal) {
-        dom.supabaseModal.addEventListener("click", (e) => {
-            if (e.target === dom.supabaseModal) {
-                dom.supabaseModal.classList.remove("active");
-            }
-        });
-    }
-
-    if (dom.btnSaveSupabase && dom.supabaseModal) {
-        dom.btnSaveSupabase.addEventListener("click", () => {
-            const url = dom.supabaseUrl.value.trim();
-            const key = dom.supabaseKey.value.trim();
-            if (!url || !key) {
-                alert("Veuillez renseigner l'URL et la Anon Key de votre projet Supabase.");
-                return;
-            }
-            const config = { url, key };
-            localStorage.setItem("tc_la_ciotat_supabase_config", JSON.stringify(config));
-            supabaseConfig = config;
-            if (window.supabase) {
-                supabase = window.supabase.createClient(config.url, config.key);
-                updateSupabaseStatus().then(() => {
-                    syncFromSupabase().then(() => {
-                        initUIFromActiveTournament();
-                        updateSupabaseStatus();
-                        alert("Connexion Supabase établie et synchronisée avec succès !");
-                    });
-                });
+    // Admin Login and Logout Event Listeners
+    if (dom.loginForm) {
+        dom.loginForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const email = dom.loginEmail.value.trim();
+            const password = dom.loginPassword.value;
+            
+            if (email === "davhuin@gmail.com" && password === "LCTC2026!") {
+                dom.loginErrorMsg.style.display = "none";
+                localStorage.setItem("tc_lctc_admin_auth", "true");
+                
+                // Sign in to Supabase Auth so RLS works as expected
+                if (supabase) {
+                    try {
+                        await supabase.auth.signInWithPassword({ email, password });
+                    } catch (err) {
+                        console.warn("Supabase Auth sign in failed (likely user not created yet):", err);
+                    }
+                }
+                
+                checkAuth();
             } else {
-                alert("Erreur : Le SDK Supabase n'a pas pu être chargé. Veuillez recharger la page ou désactiver vos bloqueurs de publicité.");
+                dom.loginErrorMsg.style.display = "block";
             }
-            dom.supabaseModal.classList.remove("active");
         });
     }
 
-    if (dom.btnClearSupabase && dom.supabaseModal) {
-        dom.btnClearSupabase.addEventListener("click", () => {
-            if (confirm("Voulez-vous déconnecter Supabase ? Les données ne seront plus synchronisées dans le Cloud.")) {
-                localStorage.removeItem("tc_la_ciotat_supabase_config");
-                supabaseConfig = null;
-                supabase = null;
-                updateSupabaseStatus();
-                dom.supabaseModal.classList.remove("active");
-                alert("Supabase déconnecté. Mode local uniquement.");
-                initUIFromActiveTournament();
+    if (dom.btnLogout) {
+        dom.btnLogout.addEventListener("click", async () => {
+            if (confirm("Êtes-vous sûr de vouloir vous déconnecter ?")) {
+                localStorage.removeItem("tc_lctc_admin_auth");
+                if (supabase) {
+                    await supabase.auth.signOut().catch(() => {});
+                }
+                window.location.reload();
             }
         });
     }
@@ -1042,9 +970,99 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function deletePlayer(id) {
-        state.players = state.players.filter(p => p.id !== id);
-        renderPlayersList();
+        if (confirm("Supprimer définitivement ce joueur du tournoi ?")) {
+            // Remove from any pool and rebuild matches
+            if (state && state.pools) {
+                state.pools.forEach(pool => {
+                    if (pool.playerIds && pool.playerIds.includes(id)) {
+                        pool.playerIds = pool.playerIds.filter(pid => pid !== id);
+                        rebuildPoolMatches(pool);
+                    }
+                });
+            }
+            state.players = state.players.filter(p => p.id !== id);
+            renderPlayersList();
+            saveState();
+        }
+    }
+
+    function rebuildPoolMatches(pool) {
+        const pIds = pool.playerIds;
+        const newMatches = [];
+        
+        // Find existing matches to preserve
+        const existingPoolMatches = Object.values(state.matches).filter(m => 
+            pIds.includes(m.p1Id) && pIds.includes(m.p2Id)
+        );
+
+        // Generate combinations
+        for (let i = 0; i < pIds.length; i++) {
+            for (let j = i + 1; j < pIds.length; j++) {
+                const id1 = pIds[i];
+                const id2 = pIds[j];
+                
+                // Look for existing match
+                let match = existingPoolMatches.find(m => 
+                    (m.p1Id === id1 && m.p2Id === id2) || (m.p1Id === id2 && m.p2Id === id1)
+                );
+                
+                if (match) {
+                    newMatches.push(match);
+                } else {
+                    const matchId = `match_${pool.id}_manual_${generateId()}`;
+                    state.matches[matchId] = {
+                        id: matchId,
+                        p1Id: id1,
+                        p2Id: id2,
+                        p1Sets: null,
+                        p2Sets: null,
+                        sets: [
+                            { p1: null, p2: null },
+                            { p1: null, p2: null },
+                            { p1: null, p2: null }
+                        ],
+                        wo: null,
+                        played: false
+                    };
+                    newMatches.push(state.matches[matchId]);
+                }
+            }
+        }
+
+        // Clean up state.matches: delete any old match that was part of this pool but is no longer valid
+        const oldMatchIds = pool.matches || [];
+        const newMatchIds = newMatches.map(m => m.id);
+        
+        oldMatchIds.forEach(mId => {
+            if (!newMatchIds.includes(mId)) {
+                delete state.matches[mId];
+            }
+        });
+
+        pool.matches = newMatchIds;
+        recalculatePoolStandings(pool);
+    }
+
+    function removePlayerFromPool(poolId, playerId) {
+        const pool = state.pools.find(p => p.id === poolId);
+        if (!pool) return;
+        
+        if (confirm("Retirer ce joueur de la poule ? Les scores des matchs le concernant dans cette poule seront perdus.")) {
+            pool.playerIds = pool.playerIds.filter(id => id !== playerId);
+            rebuildPoolMatches(pool);
+            saveState();
+            renderPoolsStage();
+        }
+    }
+
+    function addPlayerToPool(poolId, playerId) {
+        const pool = state.pools.find(p => p.id === poolId);
+        if (!pool) return;
+        
+        pool.playerIds.push(playerId);
+        rebuildPoolMatches(pool);
         saveState();
+        renderPoolsStage();
     }
 
     // ==========================================================================
@@ -1344,6 +1362,70 @@ document.addEventListener("DOMContentLoaded", () => {
     function renderPoolsStage() {
         dom.poolsContainer.innerHTML = "";
 
+        // Render Unassigned Players if any
+        const unassignedPlayers = state.players.filter(p => !state.pools.some(pool => pool.playerIds.includes(p.id)));
+        if (unassignedPlayers.length > 0) {
+            const unassignedDiv = document.createElement("div");
+            unassignedDiv.className = "card glass-card";
+            unassignedDiv.style.marginBottom = "1.5rem";
+            unassignedDiv.style.border = "1px dashed var(--accent)";
+            unassignedDiv.style.padding = "1.5rem";
+            unassignedDiv.innerHTML = `
+                <div class="card-header" style="display: flex; align-items: center; gap: 10px; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 0.75rem;">
+                    <i class="fa-solid fa-triangle-exclamation" style="color: var(--accent); font-size: 1.2rem;"></i>
+                    <h3 style="margin: 0; font-size: 1.1rem; font-weight: 600; color: #ffffff;">Joueurs à placer dans une poule (${unassignedPlayers.length})</h3>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table class="standings-table" style="width: 100%;">
+                        <thead>
+                            <tr>
+                                <th class="align-left">Joueur</th>
+                                <th>Classement</th>
+                                <th style="width: 200px;">Affecter à</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            
+            const tbody = unassignedDiv.querySelector("tbody");
+            unassignedPlayers.forEach(player => {
+                const tr = document.createElement("tr");
+                
+                // Create select dropdown options
+                let selectOptions = `<option value="" disabled selected>Choisir une poule...</option>`;
+                state.pools.forEach(pool => {
+                    selectOptions += `<option value="${pool.id}">${pool.name}</option>`;
+                });
+                
+                tr.innerHTML = `
+                    <td class="align-left font-bold"><strong>${player.lastname}</strong> ${player.firstname}</td>
+                    <td><span class="badge info-badge" style="background: rgba(99, 102, 241, 0.1); color: var(--primary-light);">${player.rank}</span></td>
+                    <td>
+                        <select class="btn btn-secondary btn-sm select-affect-pool" data-player-id="${player.id}" style="width: 100%; max-width: 180px; padding: 6px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: var(--bg-dark); color: #fff;">
+                            ${selectOptions}
+                        </select>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            
+            dom.poolsContainer.appendChild(unassignedDiv);
+            
+            // Add change listener to dropdowns
+            unassignedDiv.querySelectorAll(".select-affect-pool").forEach(select => {
+                select.addEventListener("change", (e) => {
+                    const playerId = select.getAttribute("data-player-id");
+                    const poolId = e.target.value;
+                    if (poolId) {
+                        addPlayerToPool(poolId, playerId);
+                    }
+                });
+            });
+        }
+
         state.pools.forEach(pool => {
             const card = document.createElement("div");
             card.className = "card glass-card pool-card";
@@ -1369,6 +1451,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         <th>P</th>
                         <th>Sets</th>
                         <th>Jeux</th>
+                        <th style="width: 50px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1401,10 +1484,24 @@ document.addEventListener("DOMContentLoaded", () => {
                     <td>${stats.lost}</td>
                     <td><span class="help-text" style="margin-top:0;">${stats.setsWon}/${stats.setsLost} (${fmtDiff(stats.setsDiff)})</span></td>
                     <td><span class="help-text" style="margin-top:0;">${stats.gamesWon}/${stats.gamesLost} (${fmtDiff(stats.gamesDiff)})</span></td>
+                    <td>
+                        <button class="btn btn-danger btn-icon-only btn-remove-from-pool" data-pool-id="${pool.id}" data-player-id="${player.id}" title="Sortir de la poule" style="padding: 4px 8px; font-size: 0.8rem;">
+                            <i class="fa-solid fa-user-minus"></i>
+                        </button>
+                    </td>
                 `;
                 tbody.appendChild(tr);
             });
             card.appendChild(table);
+
+            // Add remove from pool listeners
+            tbody.querySelectorAll(".btn-remove-from-pool").forEach(btn => {
+                btn.addEventListener("click", () => {
+                    const poolId = btn.getAttribute("data-pool-id");
+                    const playerId = btn.getAttribute("data-player-id");
+                    removePlayerFromPool(poolId, playerId);
+                });
+            });
 
             // Collapsible Matches section
             const matchesDiv = document.createElement("div");
